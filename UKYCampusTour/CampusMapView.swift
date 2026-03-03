@@ -9,21 +9,7 @@ import SwiftUI
 import MapKit
 import CoreLocation
 
-// Helper class to ask iOS for location permission and receive GPS updates
-// needs to be an ObservableObject so MapView can watch it and update view accordingly
-class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
-    // our manager that actually communicates with GPS chip
-    private let manager = CLLocationManager()
-    
-    override init() {
-        super.init() //initialize our parent classes before we configure manager
-        manager.delegate = self //designate "manager" to be the recipient of gps data
-        manager.requestWhenInUseAuthorization() //show popup
-        manager.startUpdatingLocation() //continuousoly update gps location
-    }
-}
-
-struct MapView: View {
+struct CampusMapView: View {
     
     //create instance of LocationManager for our MapView
     //StateObject keeps this instance alive for as long as the view is open
@@ -50,5 +36,5 @@ struct MapView: View {
 }
 
 #Preview {
-    MapView()
+    CampusMapView()
 }
