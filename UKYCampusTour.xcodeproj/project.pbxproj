@@ -14,17 +14,29 @@
 		2A8CD8AC2F4D61D100FA136E /* Exceptions for "UKYCampusTour" folder in "UKYCampusTour" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				ContentView,
 				Info.plist,
 			);
 			target = 2A8CD89A2F4BDF8B00FA136E /* UKYCampusTour */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		2A8CD8B92F572EBA00FA136E /* Exceptions for "UKYCampusTour" folder in "Compile Sources" phase from "UKYCampusTour" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = 2A8CD8972F4BDF8B00FA136E /* Sources */;
+			membershipExceptions = (
+				ContentView,
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		2A8CD89D2F4BDF8B00FA136E /* UKYCampusTour */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				2A8CD8AC2F4D61D100FA136E /* Exceptions for "UKYCampusTour" folder in "UKYCampusTour" target */,
+				2A8CD8B92F572EBA00FA136E /* Exceptions for "UKYCampusTour" folder in "Compile Sources" phase from "UKYCampusTour" target */,
 			);
 			path = UKYCampusTour;
 			sourceTree = "<group>";
