@@ -14,7 +14,7 @@
 		2A8CD8AC2F4D61D100FA136E /* Exceptions for "UKYCampusTour" folder in "UKYCampusTour" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Info.plist,
+				Resources/Info.plist,
 			);
 			target = 2A8CD89A2F4BDF8B00FA136E /* UKYCampusTour */;
 		};
