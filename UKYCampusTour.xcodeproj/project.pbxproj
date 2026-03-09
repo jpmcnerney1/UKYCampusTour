@@ -10,22 +10,9 @@
 		2A8CD89B2F4BDF8B00FA136E /* UKYCampusTour.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = UKYCampusTour.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		2A8CD8AC2F4D61D100FA136E /* Exceptions for "UKYCampusTour" folder in "UKYCampusTour" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Resources/Info.plist,
-			);
-			target = 2A8CD89A2F4BDF8B00FA136E /* UKYCampusTour */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		2A8CD89D2F4BDF8B00FA136E /* UKYCampusTour */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				2A8CD8AC2F4D61D100FA136E /* Exceptions for "UKYCampusTour" folder in "UKYCampusTour" target */,
-			);
 			path = UKYCampusTour;
 			sourceTree = "<group>";
 		};
@@ -267,7 +254,6 @@
 				DEVELOPMENT_TEAM = Z2KVA4PBX6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = UKYCampusTour/Info.plist;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your location to show where you are on the UK campus map.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -298,7 +284,6 @@
 				DEVELOPMENT_TEAM = Z2KVA4PBX6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = UKYCampusTour/Info.plist;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your location to show where you are on the UK campus map.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
