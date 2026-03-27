@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct UKYCampusTourApp: App {
+    @AppStorage("appearanceMode") private var appearanceMode = AppearanceMode.system.rawValue
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .preferredColorScheme(AppearanceMode(rawValue: appearanceMode)?.colorScheme)
         }
     }
 }
