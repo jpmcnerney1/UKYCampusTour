@@ -7,11 +7,10 @@
 
 import SwiftUI
 
-struct ContentView: View {
+struct MainMapScreen: View {
     var body: some View {
         NavigationStack {
             CampusMapView()
-                .ignoresSafeArea()
                 .navigationTitle("UK Campus Tour")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

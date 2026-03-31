@@ -11,7 +11,7 @@ import SwiftUI
 struct UKYCampusTourApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainMapScreen()
         }
     }
 }
