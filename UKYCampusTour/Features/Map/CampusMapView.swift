@@ -27,12 +27,41 @@ struct CampusMapView: View {
     )
 
     var body: some View {
-        Map(position: $cameraPosition) {
-            UserAnnotation() //blue dot
+        ZStack(alignment: .bottomTrailing) {
+            Map(position: $cameraPosition) {
+                UserAnnotation()
+            }
+            .mapStyle(.standard)
+            .ignoresSafeArea()
+            
+            Button {
+                recenterOnUser()
+            } label: {
+                Image(systemName: "location.fill")
+                    .font(.title3)
+                    .foregroundStyle(.blue)
+                    .frame(width: 50, height: 50)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Circle())
+                    .shadow(radius: 4)
+            }
+            .padding(.trailing, 16)
+            .padding(.bottom, 24)
         }
-        .mapStyle(.standard) //compared to satellie, etc
-        .ignoresSafeArea()
     }
+    
+    // grab current location from LocationManager and set camera position to that location
+    private func recenterOnUser() {
+        guard let coordinate = locationManager.userCoordinate else { return }
+        
+        cameraPosition = .region(
+            MKCoordinateRegion(
+                center: coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
+            )
+        )
+    }
+        
 }
 
 #Preview {
