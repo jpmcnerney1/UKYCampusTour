@@ -17,6 +17,8 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published private(set) var currentLocation: CLLocation?
     @Published private(set) var authorizationStatus: CLAuthorizationStatus
     
+    @Published var userCoordinate: CLLocationCoordinate2D?
+    
     override init() {
         authorizationStatus = manager.authorizationStatus
         super.init() //initialize our parent classes before we configure manager
@@ -49,5 +51,11 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         print("Location update failed: \(error.localizedDescription)")
+    }
+    
+    // need to actually store location somewhere so we can use for non-automatic things such as recentering
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let latestLocation = locations.last else { return }
+        userCoordinate = latestLocation.coordinate
     }
 }

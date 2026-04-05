@@ -40,7 +40,7 @@ struct CampusMapView: View {
     @State private var etaText: String = "6 min"
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack(alignment: .bottomTrailing) {
             Map(position: $cameraPosition) {
                 UserAnnotation()
 
@@ -117,6 +117,20 @@ struct CampusMapView: View {
             .onDisappear {
                 routeTask?.cancel()
             }
+
+            Button {
+                recenterOnUser()
+            } label: {
+                Image(systemName: "location.fill")
+                    .font(.title3)
+                    .foregroundStyle(.blue)
+                    .frame(width: 50, height: 50)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Circle())
+                    .shadow(radius: 4)
+            }
+            .padding(.trailing, 16)
+            .padding(.bottom, 140)
 
             BottomControlsPanel(
                 usingCustomStart: $usingCustomStart,
@@ -202,6 +216,17 @@ struct CampusMapView: View {
         )
     }
 
+    private func recenterOnUser() {
+        guard let location = locationManager.currentLocation else { return }
+
+        cameraPosition = .region(
+            MKCoordinateRegion(
+                center: location.coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
+            )
+        )
+    }
+
     private func shouldRequestRoute(for location: CLLocation) -> Bool {
         guard location.horizontalAccuracy >= 0 else {
             return false
@@ -247,6 +272,10 @@ struct CampusMapView: View {
                 hasLoadedRoute = true
                 distanceText = String(format: "%.1f mi", firstRoute.distance / 1609.34)
                 etaText = "\(Int(ceil(firstRoute.expectedTravelTime / 60))) min"
+
+                let rect = firstRoute.polyline.boundingMapRect
+                let paddedRect = rect.insetBy(dx: -rect.size.width * 0.25, dy: -rect.size.height * 0.25)
+                cameraPosition = .rect(paddedRect)
             } catch is CancellationError {
                 return
             } catch {
@@ -260,7 +289,7 @@ struct CampusMapView: View {
             }
         }
     }
-    
+
     private func resolveDestinationAndRoute(showSteps: Bool = false) {
         let query = searchService.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
 
