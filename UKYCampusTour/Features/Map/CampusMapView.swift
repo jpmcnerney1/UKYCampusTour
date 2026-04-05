@@ -10,7 +10,7 @@ import MapKit
 import CoreLocation
 
 struct CampusMapView: View {
-    private let destination = CampusDestination.williamTYoungLibrary
+    @State private var selectedDestination = CampusDestination.williamTYoungLibrary
 
     @StateObject private var locationManager = LocationManager()
     @StateObject private var searchService = LocationSearchService()
@@ -20,6 +20,7 @@ struct CampusMapView: View {
     @State private var sheetState: DirectionsSheetState = .loading(title: CampusDestination.williamTYoungLibrary.name)
     @State private var lastRequestedLocation: CLLocation?
     @State private var routeTask: Task<Void, Never>?
+    @State private var showingStepsSheet = false
 
     @State private var cameraPosition: MapCameraPosition = .userLocation(
         fallback: .region(
@@ -43,7 +44,7 @@ struct CampusMapView: View {
             Map(position: $cameraPosition) {
                 UserAnnotation()
 
-                Marker(destination.name, coordinate: destination.coordinate)
+                Marker(selectedDestination.name, coordinate: selectedDestination.coordinate)
 
                 if let route {
                     MapPolyline(route.polyline)
@@ -80,10 +81,20 @@ struct CampusMapView: View {
                     Section("Saved Destinations") {
                         ForEach(savedService.savedDestinations) { savedDestination in
                             Button {
+                                let campusDestination = CampusDestination(
+                                    name: savedDestination.title,
+                                    coordinate: savedDestination.coordinate
+                                )
+
+                                selectedDestination = campusDestination
                                 moveCamera(to: savedDestination.coordinate)
                                 searchService.searchText = savedDestination.title
                                 destinationText = savedDestination.title
                                 savedService.moveDestinationToTop(savedDestination)
+
+                                if let currentLocation = locationManager.currentLocation {
+                                    fetchRoute(from: currentLocation, to: selectedDestination)
+                                }
                             } label: {
                                 Label(savedDestination.title, systemImage: "bookmark")
                             }
@@ -95,13 +106,13 @@ struct CampusMapView: View {
                 guard status == .denied || status == .restricted else { return }
                 sheetState = .message(
                     title: "Location Access Needed",
-                    message: "Enable location access to generate walking directions to \(destination.name)."
+                    message: "Enable location access to generate walking directions to \(selectedDestination.name)."
                 )
             }
             .onReceive(locationManager.$currentLocation) { currentLocation in
                 guard let currentLocation else { return }
                 guard shouldRequestRoute(for: currentLocation) else { return }
-                fetchRoute(from: currentLocation)
+                fetchRoute(from: currentLocation, to: selectedDestination)
             }
             .onDisappear {
                 routeTask?.cancel()
@@ -121,11 +132,10 @@ struct CampusMapView: View {
                     print("Open destination search")
                 },
                 onRoute: {
-                    print("Build route")
-                    hasLoadedRoute = true
+                    resolveDestinationAndRoute(showSteps: false)
                 },
                 onSteps: {
-                    print("Show steps")
+                    resolveDestinationAndRoute(showSteps: true)
                 },
                 onClear: {
                     print("Clear route")
@@ -139,6 +149,11 @@ struct CampusMapView: View {
             )
             .padding(.horizontal)
             .padding(.bottom, 12)
+        }
+        .sheet(isPresented: $showingStepsSheet) {
+            DirectionsBottomSheet(state: sheetState)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -160,10 +175,21 @@ struct CampusMapView: View {
                 longitude: coordinate.longitude
             )
 
+            let campusDestination = CampusDestination(
+                name: completion.title,
+                coordinate: coordinate
+            )
+
+            selectedDestination = campusDestination
             moveCamera(to: coordinate)
             savedService.addDestinationIfNeeded(newDestination)
+            savedService.moveDestinationToTop(newDestination)
             searchService.searchText = completion.title
             destinationText = completion.title
+
+            if let currentLocation = locationManager.currentLocation {
+                fetchRoute(from: currentLocation, to: selectedDestination)
+            }
         }
     }
 
@@ -188,7 +214,7 @@ struct CampusMapView: View {
         return location.distance(from: lastRequestedLocation) > 20
     }
 
-    private func fetchRoute(from location: CLLocation) {
+    private func fetchRoute(from location: CLLocation, to destination: CampusDestination) {
         lastRequestedLocation = location
         routeTask?.cancel()
         sheetState = .loading(title: destination.name)
@@ -219,8 +245,8 @@ struct CampusMapView: View {
                 route = firstRoute
                 sheetState = .route(walkingRoute)
                 hasLoadedRoute = true
-                distanceText = walkingRoute.distanceText
-                etaText = walkingRoute.expectedTravelTimeText
+                distanceText = String(format: "%.1f mi", firstRoute.distance / 1609.34)
+                etaText = "\(Int(ceil(firstRoute.expectedTravelTime / 60))) min"
             } catch is CancellationError {
                 return
             } catch {
@@ -231,6 +257,78 @@ struct CampusMapView: View {
                     title: "Directions Unavailable",
                     message: "Walking directions could not be loaded right now."
                 )
+            }
+        }
+    }
+    
+    private func resolveDestinationAndRoute(showSteps: Bool = false) {
+        let query = searchService.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if query.isEmpty {
+            if let currentLocation = locationManager.currentLocation {
+                fetchRoute(from: currentLocation, to: selectedDestination)
+                if showSteps {
+                    showingStepsSheet = true
+                }
+            }
+            return
+        }
+
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = query
+        request.region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 38.032871, longitude: -84.501717),
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        )
+
+        let search = MKLocalSearch(request: request)
+
+        search.start { response, error in
+            guard let mapItem = response?.mapItems.first,
+                  let coordinate = mapItem.placemark.location?.coordinate else {
+                print("Search failed: \(error?.localizedDescription ?? "Unknown error")")
+                sheetState = .message(
+                    title: "Destination Not Found",
+                    message: "Could not find a campus destination matching \"\(query)\"."
+                )
+                hasLoadedRoute = false
+                return
+            }
+
+            let resolvedName = mapItem.name ?? query
+
+            let campusDestination = CampusDestination(
+                name: resolvedName,
+                coordinate: coordinate
+            )
+
+            let newSavedDestination = SavedDestination(
+                title: resolvedName,
+                subtitle: mapItem.placemark.title ?? "",
+                latitude: coordinate.latitude,
+                longitude: coordinate.longitude
+            )
+
+            selectedDestination = campusDestination
+            destinationText = resolvedName
+            searchService.searchText = resolvedName
+            moveCamera(to: coordinate)
+            savedService.addDestinationIfNeeded(newSavedDestination)
+
+            guard let currentLocation = locationManager.currentLocation else {
+                sheetState = .message(
+                    title: "Location Access Needed",
+                    message: "Enable location access to generate walking directions to \(resolvedName)."
+                )
+                return
+            }
+
+            fetchRoute(from: currentLocation, to: campusDestination)
+
+            if showSteps {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    showingStepsSheet = true
+                }
             }
         }
     }
