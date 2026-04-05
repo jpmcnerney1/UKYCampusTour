@@ -118,20 +118,7 @@ struct CampusMapView: View {
                 routeTask?.cancel()
             }
 
-            Button {
-                recenterOnUser()
-            } label: {
-                Image(systemName: "location.fill")
-                    .font(.title3)
-                    .foregroundStyle(.blue)
-                    .frame(width: 50, height: 50)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Circle())
-                    .shadow(radius: 4)
-            }
-            .padding(.trailing, 16)
-            .padding(.bottom, 140)
-
+            // bottom panel
             BottomControlsPanel(
                 usingCustomStart: $usingCustomStart,
                 startLocationText: $startLocationText,
@@ -152,7 +139,6 @@ struct CampusMapView: View {
                     resolveDestinationAndRoute(showSteps: true)
                 },
                 onClear: {
-                    print("Clear route")
                     startLocationText = ""
                     destinationText = ""
                     hasLoadedRoute = false
@@ -163,6 +149,21 @@ struct CampusMapView: View {
             )
             .padding(.horizontal)
             .padding(.bottom, 12)
+
+            // recenter button on top
+            Button {
+                recenterOnUser()
+            } label: {
+                Image(systemName: "location.fill")
+                    .font(.title3)
+                    .foregroundStyle(.blue)
+                    .frame(width: 50, height: 50)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Circle())
+                    .shadow(radius: 4)
+            }
+            .padding(.trailing, 16)
+            .padding(.bottom, 140)
         }
         .sheet(isPresented: $showingStepsSheet) {
             DirectionsBottomSheet(state: sheetState)
