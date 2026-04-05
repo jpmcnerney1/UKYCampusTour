@@ -15,10 +15,12 @@ struct MainMapScreen: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button {
+                        NavigationLink {
+                            SettingsView()
                         } label: {
-                            Image(systemName: "gearshape") // *placeholder
+                            Image(systemName: "gearshape.fill")
                         }
+                        .accessibilityLabel("Open settings")
                     }
 
                     ToolbarItem(placement: .topBarTrailing) {
