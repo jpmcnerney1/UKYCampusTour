@@ -7,19 +7,20 @@
 
 import SwiftUI
 
-struct ContentView: View {
+struct MainMapScreen: View {
     var body: some View {
         NavigationStack {
             CampusMapView()
-                .ignoresSafeArea()
                 .navigationTitle("UK Campus Tour")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button {
+                        NavigationLink {
+                            SettingsView()
                         } label: {
-                            Image(systemName: "gearshape") // *placeholder
+                            Image(systemName: "gearshape.fill")
                         }
+                        .accessibilityLabel("Open settings")
                     }
 
                     ToolbarItem(placement: .topBarTrailing) {

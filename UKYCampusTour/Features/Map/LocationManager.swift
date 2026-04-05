@@ -14,14 +14,43 @@ import Foundation
 class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     // our manager that actually communicates with GPS chip
     private let manager = CLLocationManager()
+    @Published private(set) var currentLocation: CLLocation?
+    @Published private(set) var authorizationStatus: CLAuthorizationStatus
     
     @Published var userCoordinate: CLLocationCoordinate2D?
     
     override init() {
+        authorizationStatus = manager.authorizationStatus
         super.init() //initialize our parent classes before we configure manager
         manager.delegate = self //designate "manager" to be the recipient of gps data
+        manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
         manager.requestWhenInUseAuthorization() //show popup
-        manager.startUpdatingLocation() //continuousoly update gps location
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            manager.startUpdatingLocation() //continuousoly update gps location
+        }
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        authorizationStatus = manager.authorizationStatus
+
+        switch manager.authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse:
+            manager.startUpdatingLocation()
+        case .denied, .restricted:
+            manager.stopUpdatingLocation()
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        @unknown default:
+            break
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        currentLocation = locations.last
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        print("Location update failed: \(error.localizedDescription)")
     }
     
     // need to actually store location somewhere so we can use for non-automatic things such as recentering
