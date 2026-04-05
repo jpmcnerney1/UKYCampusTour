@@ -12,27 +12,30 @@ import CoreLocation
 struct CampusMapView: View {
     private let destination = CampusDestination.williamTYoungLibrary
     
-    //create instance of LocationManager for our MapView
-    //StateObject keeps this instance alive for as long as the view is open
     @StateObject private var locationManager = LocationManager()
+
+    @StateObject private var searchService = LocationSearchService()
+    @StateObject private var savedService = SavedDestinationsService()
+
     @State private var route: MKRoute?
     @State private var sheetState: DirectionsSheetState = .loading(title: CampusDestination.williamTYoungLibrary.name)
     @State private var lastRequestedLocation: CLLocation?
     @State private var routeTask: Task<Void, Never>?
     
-    //Same thing as StateObject but for simpler value types
-    //this block controls where our map is looking
-    //start it at live location, if that is unavailable, we go to Willy T
+    // State var for camera position. Defaults to Willy T
     @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .region(
         MKCoordinateRegion(
-                center: CLLocationCoordinate2D(latitude: 38.032871, longitude: -84.501717),
-                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-            )
+            center: CLLocationCoordinate2D(latitude: 38.032871, longitude: -84.501717),
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
         )
-    )
-
+    ))
+    
+    // User defaults identifier. Used for saveDestination() and loadDestination()
+    private let savedKey = "saved_destinations"
+    
     var body: some View {
         Map(position: $cameraPosition) {
+
             UserAnnotation() //blue dot
 
             Marker(destination.name, coordinate: destination.coordinate)
@@ -42,8 +45,95 @@ struct CampusMapView: View {
                     .stroke(.blue, lineWidth: 6)
             }
         }
-        .mapStyle(.standard) //compared to satellie, etc
+        .mapStyle(.standard)
         .ignoresSafeArea()
+        .onAppear {
+            savedService.loadSavedDestinations()
+        }
+        .searchable(
+            text: $searchService.searchText,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "Search campus destinations"
+        )
+        .searchSuggestions {
+            ForEach(searchService.completions, id: \.self) { completion in
+                Button {
+                    searchForCompletion(completion)
+                } label: {
+                    VStack(alignment: .leading) {
+                        Text(completion.title)
+                        if !completion.subtitle.isEmpty {
+                            Text(completion.subtitle)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+             
+            if !savedService.savedDestinations.isEmpty {
+                Section("Saved Destinations") {
+                    ForEach(savedService.savedDestinations) { destination in
+                        Button {
+                            moveCamera(to: destination.coordinate)
+                            searchService.searchText = destination.title
+                            savedService.moveDestinationToTop(destination)
+                        } label: {
+                            Label(destination.title, systemImage: "bookmark")
+                        }
+                        .swipeActions {
+                                Button(role: .destructive) {
+                                    savedService.deleteDestination(destination)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Turns our chosen suggested location into an actual map detailed location
+    private func searchForCompletion(_ completion: MKLocalSearchCompletion) {
+        let request = MKLocalSearch.Request(completion: completion)
+        let search = MKLocalSearch(request: request)
+        
+        search.start { response, error in
+            guard let mapItem = response?.mapItems.first,
+                  let coordinate = mapItem.placemark.location?.coordinate else {
+                print("Search failed: \(error?.localizedDescription ?? "Unknown error")")
+                return
+            }
+            
+            let newDestination = SavedDestination(
+                title: completion.title,
+                subtitle: completion.subtitle,
+                latitude: coordinate.latitude,
+                longitude: coordinate.longitude
+            )
+            
+            moveCamera(to: coordinate)
+            savedService.addDestinationIfNeeded(newDestination)
+            searchService.searchText = completion.title
+        }
+    }
+    
+    private func moveCamera(to coordinate: CLLocationCoordinate2D) {
+        cameraPosition = .region(
+            MKCoordinateRegion(
+                center: coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
+            )
+        )
+    }
+}
+
+#Preview {
+    NavigationStack {
+        CampusMapView()
+    }
+=======
         .overlay(alignment: .bottom) {
             DirectionsBottomSheet(state: sheetState)
                 .padding(.horizontal, 12)

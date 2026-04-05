@@ -13,7 +13,7 @@ struct UKYCampusTourApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainMapScreen()
                 .preferredColorScheme(AppearanceMode(rawValue: appearanceMode)?.colorScheme)
         }
     }
