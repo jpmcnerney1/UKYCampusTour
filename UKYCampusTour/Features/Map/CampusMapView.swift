@@ -30,76 +30,115 @@ struct CampusMapView: View {
         )
     )
 
+    // Bottom panel UI state
+    @State private var usingCustomStart: Bool = false
+    @State private var startLocationText: String = ""
+    @State private var destinationText: String = ""
+    @State private var hasLoadedRoute: Bool = false
+    @State private var distanceText: String = "0.8 mi"
+    @State private var etaText: String = "6 min"
+
     var body: some View {
-        Map(position: $cameraPosition) {
-            UserAnnotation()
+        ZStack(alignment: .bottom) {
+            Map(position: $cameraPosition) {
+                UserAnnotation()
 
-            Marker(destination.name, coordinate: destination.coordinate)
+                Marker(destination.name, coordinate: destination.coordinate)
 
-            if let route {
-                MapPolyline(route.polyline)
-                    .stroke(.blue, lineWidth: 6)
-            }
-        }
-        .mapStyle(.standard)
-        .ignoresSafeArea()
-        .onAppear {
-            savedService.loadSavedDestinations()
-        }
-        .searchable(
-            text: $searchService.searchText,
-            placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "Search campus destinations"
-        )
-        .searchSuggestions {
-            ForEach(searchService.completions, id: \.self) { completion in
-                Button {
-                    searchForCompletion(completion)
-                } label: {
-                    VStack(alignment: .leading) {
-                        Text(completion.title)
-                        if !completion.subtitle.isEmpty {
-                            Text(completion.subtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                if let route {
+                    MapPolyline(route.polyline)
+                        .stroke(.blue, lineWidth: 6)
                 }
             }
-
-            if !savedService.savedDestinations.isEmpty {
-                Section("Saved Destinations") {
-                    ForEach(savedService.savedDestinations) { savedDestination in
-                        Button {
-                            moveCamera(to: savedDestination.coordinate)
-                            searchService.searchText = savedDestination.title
-                            savedService.moveDestinationToTop(savedDestination)
-                        } label: {
-                            Label(savedDestination.title, systemImage: "bookmark")
-                        }
-                    }
-                }
+            .mapStyle(.standard)
+            .ignoresSafeArea()
+            .onAppear {
+                savedService.loadSavedDestinations()
             }
-        }
-        .overlay(alignment: .bottom) {
-            DirectionsBottomSheet(state: sheetState)
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
-        }
-        .onReceive(locationManager.$authorizationStatus) { status in
-            guard status == .denied || status == .restricted else { return }
-            sheetState = .message(
-                title: "Location Access Needed",
-                message: "Enable location access to generate walking directions to \(destination.name)."
+            .searchable(
+                text: $searchService.searchText,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "Search campus destinations"
             )
-        }
-        .onReceive(locationManager.$currentLocation) { currentLocation in
-            guard let currentLocation else { return }
-            guard shouldRequestRoute(for: currentLocation) else { return }
-            fetchRoute(from: currentLocation)
-        }
-        .onDisappear {
-            routeTask?.cancel()
+            .searchSuggestions {
+                ForEach(searchService.completions, id: \.self) { completion in
+                    Button {
+                        searchForCompletion(completion)
+                    } label: {
+                        VStack(alignment: .leading) {
+                            Text(completion.title)
+                            if !completion.subtitle.isEmpty {
+                                Text(completion.subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+
+                if !savedService.savedDestinations.isEmpty {
+                    Section("Saved Destinations") {
+                        ForEach(savedService.savedDestinations) { savedDestination in
+                            Button {
+                                moveCamera(to: savedDestination.coordinate)
+                                searchService.searchText = savedDestination.title
+                                destinationText = savedDestination.title
+                                savedService.moveDestinationToTop(savedDestination)
+                            } label: {
+                                Label(savedDestination.title, systemImage: "bookmark")
+                            }
+                        }
+                    }
+                }
+            }
+            .onReceive(locationManager.$authorizationStatus) { status in
+                guard status == .denied || status == .restricted else { return }
+                sheetState = .message(
+                    title: "Location Access Needed",
+                    message: "Enable location access to generate walking directions to \(destination.name)."
+                )
+            }
+            .onReceive(locationManager.$currentLocation) { currentLocation in
+                guard let currentLocation else { return }
+                guard shouldRequestRoute(for: currentLocation) else { return }
+                fetchRoute(from: currentLocation)
+            }
+            .onDisappear {
+                routeTask?.cancel()
+            }
+
+            BottomControlsPanel(
+                usingCustomStart: $usingCustomStart,
+                startLocationText: $startLocationText,
+                destinationText: $destinationText,
+                hasLoadedRoute: $hasLoadedRoute,
+                distanceText: distanceText,
+                etaText: etaText,
+                onTapStartField: {
+                    print("Open start location search")
+                },
+                onTapDestinationField: {
+                    print("Open destination search")
+                },
+                onRoute: {
+                    print("Build route")
+                    hasLoadedRoute = true
+                },
+                onSteps: {
+                    print("Show steps")
+                },
+                onClear: {
+                    print("Clear route")
+                    startLocationText = ""
+                    destinationText = ""
+                    hasLoadedRoute = false
+                    usingCustomStart = false
+                    route = nil
+                    routeTask?.cancel()
+                }
+            )
+            .padding(.horizontal)
+            .padding(.bottom, 12)
         }
     }
 
@@ -124,6 +163,7 @@ struct CampusMapView: View {
             moveCamera(to: coordinate)
             savedService.addDestinationIfNeeded(newDestination)
             searchService.searchText = completion.title
+            destinationText = completion.title
         }
     }
 
@@ -172,16 +212,21 @@ struct CampusMapView: View {
                         message: "No walking directions are available from your current location."
                     )
                     route = nil
+                    hasLoadedRoute = false
                     return
                 }
 
                 route = firstRoute
                 sheetState = .route(walkingRoute)
+                hasLoadedRoute = true
+                distanceText = walkingRoute.distanceText
+                etaText = walkingRoute.expectedTravelTimeText
             } catch is CancellationError {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
                 route = nil
+                hasLoadedRoute = false
                 sheetState = .message(
                     title: "Directions Unavailable",
                     message: "Walking directions could not be loaded right now."
