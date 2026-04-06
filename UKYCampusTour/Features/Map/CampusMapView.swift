@@ -10,14 +10,15 @@ import MapKit
 import CoreLocation
 
 struct CampusMapView: View {
-    @State private var selectedDestination = CampusDestination.williamTYoungLibrary
+    @State private var selectedDestination: CampusDestination?
+    @State private var isNavigatingRoute = false
 
     @StateObject private var locationManager = LocationManager()
     @StateObject private var searchService = LocationSearchService()
     @StateObject private var savedService = SavedDestinationsService()
 
     @State private var route: MKRoute?
-    @State private var sheetState: DirectionsSheetState = .loading(title: CampusDestination.williamTYoungLibrary.name)
+    @State private var sheetState: DirectionsSheetState = .loading(title: "Destination")
     @State private var lastRequestedLocation: CLLocation?
     @State private var routeTask: Task<Void, Never>?
     @State private var showingStepsSheet = false
@@ -39,12 +40,22 @@ struct CampusMapView: View {
     @State private var distanceText: String = "0.8 mi"
     @State private var etaText: String = "6 min"
 
+    private var activeWalkingRoute: WalkingRoute? {
+        guard case let .route(route) = sheetState else {
+            return nil
+        }
+
+        return route
+    }
+
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             Map(position: $cameraPosition) {
                 UserAnnotation()
 
-                Marker(selectedDestination.name, coordinate: selectedDestination.coordinate)
+                if let selectedDestination {
+                    Marker(selectedDestination.name, coordinate: selectedDestination.coordinate)
+                }
 
                 if let route {
                     MapPolyline(route.polyline)
@@ -93,7 +104,7 @@ struct CampusMapView: View {
                                 savedService.moveDestinationToTop(savedDestination)
 
                                 if let currentLocation = locationManager.currentLocation {
-                                    fetchRoute(from: currentLocation, to: selectedDestination)
+                                    fetchRoute(from: currentLocation, to: campusDestination)
                                 }
                             } label: {
                                 Label(savedDestination.title, systemImage: "bookmark")
@@ -104,13 +115,15 @@ struct CampusMapView: View {
             }
             .onReceive(locationManager.$authorizationStatus) { status in
                 guard status == .denied || status == .restricted else { return }
+                let destinationName = selectedDestination?.name ?? "your destination"
                 sheetState = .message(
                     title: "Location Access Needed",
-                    message: "Enable location access to generate walking directions to \(selectedDestination.name)."
+                    message: "Enable location access to generate walking directions to \(destinationName)."
                 )
             }
             .onReceive(locationManager.$currentLocation) { currentLocation in
                 guard let currentLocation else { return }
+                guard let selectedDestination else { return }
                 guard shouldRequestRoute(for: currentLocation) else { return }
                 fetchRoute(from: currentLocation, to: selectedDestination)
             }
@@ -118,37 +131,50 @@ struct CampusMapView: View {
                 routeTask?.cancel()
             }
 
-            // bottom panel
-            BottomControlsPanel(
-                usingCustomStart: $usingCustomStart,
-                startLocationText: $startLocationText,
-                destinationText: $destinationText,
-                hasLoadedRoute: $hasLoadedRoute,
-                distanceText: distanceText,
-                etaText: etaText,
-                onTapStartField: {
-                    print("Open start location search")
-                },
-                onTapDestinationField: {
-                    print("Open destination search")
-                },
-                onRoute: {
-                    resolveDestinationAndRoute(showSteps: false)
-                },
-                onSteps: {
-                    resolveDestinationAndRoute(showSteps: true)
-                },
-                onClear: {
-                    startLocationText = ""
-                    destinationText = ""
-                    hasLoadedRoute = false
-                    usingCustomStart = false
-                    route = nil
-                    routeTask?.cancel()
+            if isNavigatingRoute, let activeWalkingRoute {
+                VStack(spacing: 0) {
+                    NavigationInstructionBanner(route: activeWalkingRoute)
+                        .padding(.horizontal)
+                        .padding(.top, 12)
+
+                    Spacer()
                 }
-            )
-            .padding(.horizontal)
-            .padding(.bottom, 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+                NavigationSummaryBar(
+                    distanceText: distanceText,
+                    etaText: etaText,
+                    onCancel: cancelActiveRoute
+                )
+                .padding(.horizontal)
+                .padding(.bottom, 12)
+            } else {
+                BottomControlsPanel(
+                    usingCustomStart: $usingCustomStart,
+                    startLocationText: $startLocationText,
+                    destinationText: $destinationText,
+                    hasLoadedRoute: $hasLoadedRoute,
+                    distanceText: distanceText,
+                    etaText: etaText,
+                    onTapStartField: {
+                        print("Open start location search")
+                    },
+                    onTapDestinationField: {
+                        print("Open destination search")
+                    },
+                    onRoute: {
+                        resolveDestinationAndRoute(enterNavigationMode: true)
+                    },
+                    onSteps: {
+                        resolveDestinationAndRoute(showSteps: true)
+                    },
+                    onClear: {
+                        clearRouteSelection()
+                    }
+                )
+                .padding(.horizontal)
+                .padding(.bottom, 12)
+            }
 
             // recenter button on top
             Button {
@@ -163,7 +189,7 @@ struct CampusMapView: View {
                     .shadow(radius: 4)
             }
             .padding(.trailing, 16)
-            .padding(.bottom, 140)
+            .padding(.bottom, isNavigatingRoute ? 120 : 140)
         }
         .sheet(isPresented: $showingStepsSheet) {
             DirectionsBottomSheet(state: sheetState)
@@ -203,7 +229,7 @@ struct CampusMapView: View {
             destinationText = completion.title
 
             if let currentLocation = locationManager.currentLocation {
-                fetchRoute(from: currentLocation, to: selectedDestination)
+                fetchRoute(from: currentLocation, to: campusDestination)
             }
         }
     }
@@ -283,6 +309,7 @@ struct CampusMapView: View {
                 guard !Task.isCancelled else { return }
                 route = nil
                 hasLoadedRoute = false
+                isNavigatingRoute = false
                 sheetState = .message(
                     title: "Directions Unavailable",
                     message: "Walking directions could not be loaded right now."
@@ -291,16 +318,15 @@ struct CampusMapView: View {
         }
     }
 
-    private func resolveDestinationAndRoute(showSteps: Bool = false) {
+    private func resolveDestinationAndRoute(showSteps: Bool = false, enterNavigationMode: Bool = false) {
         let query = searchService.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if query.isEmpty {
-            if let currentLocation = locationManager.currentLocation {
-                fetchRoute(from: currentLocation, to: selectedDestination)
-                if showSteps {
-                    showingStepsSheet = true
-                }
-            }
+            clearRouteSelection()
+            sheetState = .message(
+                title: "Destination Required",
+                message: "Search for a campus destination before requesting a route."
+            )
             return
         }
 
@@ -322,6 +348,7 @@ struct CampusMapView: View {
                     message: "Could not find a campus destination matching \"\(query)\"."
                 )
                 hasLoadedRoute = false
+                isNavigatingRoute = false
                 return
             }
 
@@ -346,6 +373,7 @@ struct CampusMapView: View {
             savedService.addDestinationIfNeeded(newSavedDestination)
 
             guard let currentLocation = locationManager.currentLocation else {
+                isNavigatingRoute = false
                 sheetState = .message(
                     title: "Location Access Needed",
                     message: "Enable location access to generate walking directions to \(resolvedName)."
@@ -353,6 +381,7 @@ struct CampusMapView: View {
                 return
             }
 
+            isNavigatingRoute = enterNavigationMode
             fetchRoute(from: currentLocation, to: campusDestination)
 
             if showSteps {
@@ -361,6 +390,24 @@ struct CampusMapView: View {
                 }
             }
         }
+    }
+
+    private func clearRouteSelection() {
+        startLocationText = ""
+        destinationText = ""
+        searchService.searchText = ""
+        selectedDestination = nil
+        hasLoadedRoute = false
+        usingCustomStart = false
+        isNavigatingRoute = false
+        route = nil
+        sheetState = .loading(title: "Destination")
+        lastRequestedLocation = nil
+        routeTask?.cancel()
+    }
+
+    private func cancelActiveRoute() {
+        clearRouteSelection()
     }
 }
 
@@ -377,5 +424,107 @@ private struct CampusDestination {
 #Preview {
     NavigationStack {
         CampusMapView()
+    }
+}
+
+private struct NavigationInstructionBanner: View {
+    let route: WalkingRoute
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Next")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            Text(route.steps.first?.instruction ?? route.title)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.leading)
+
+            if let nextStep = route.steps.first {
+                Text("\(nextStep.distanceMeters.navigationDistanceText) remaining in this leg")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(.white.opacity(0.35), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.16), radius: 14, y: 6)
+    }
+}
+
+private struct NavigationSummaryBar: View {
+    let distanceText: String
+    let etaText: String
+    let onCancel: () -> Void
+
+    private let ukBlue = Color(red: 0/255, green: 51/255, blue: 160/255)
+
+    var body: some View {
+        HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Remaining")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+
+                Text(distanceText)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.primary)
+            }
+
+            Divider()
+                .frame(height: 36)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Time Left")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+
+                Text(etaText)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.primary)
+            }
+
+            Spacer()
+
+            Button("Cancel", action: onCancel)
+                .font(.headline)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .background(ukBlue, in: Capsule())
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(.white.opacity(0.35), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
+    }
+}
+
+private extension CLLocationDistance {
+    var navigationDistanceText: String {
+        let formatter = MeasurementFormatter()
+        formatter.unitOptions = .providedUnit
+        formatter.unitStyle = .short
+
+        if self >= 1000 {
+            let measurement = Measurement(value: self / 1000, unit: UnitLength.kilometers)
+            return formatter.string(from: measurement)
+        } else {
+            let measurement = Measurement(value: self, unit: UnitLength.meters)
+            return formatter.string(from: measurement)
+        }
     }
 }

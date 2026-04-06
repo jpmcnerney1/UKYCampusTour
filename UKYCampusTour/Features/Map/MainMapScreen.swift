@@ -22,13 +22,6 @@ struct MainMapScreen: View {
                         }
                         .accessibilityLabel("Open settings")
                     }
-
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                        } label: {
-                            Image(systemName: "magnifyingglass") // *placeholder
-                        }
-                    }
                 }
         }
     }
