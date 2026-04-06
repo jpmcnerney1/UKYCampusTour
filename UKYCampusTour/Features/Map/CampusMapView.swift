@@ -189,7 +189,8 @@ struct CampusMapView: View {
                     .shadow(radius: 4)
             }
             .padding(.trailing, 16)
-            .padding(.bottom, isNavigatingRoute ? 120 : 140)
+
+            .padding(.bottom, isNavigatingRoute ? 120 : 210)
         }
         .sheet(isPresented: $showingStepsSheet) {
             DirectionsBottomSheet(state: sheetState)
